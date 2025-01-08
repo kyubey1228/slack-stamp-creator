@@ -268,6 +268,20 @@
         </div>
 
         <div class="control-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="videoChromakeyEnabled">
+            <label for="videoChromakeyEnabled" style="margin: 0;">クロマキー合成</label>
+          </div>
+          <label>除去する色</label>
+          <input type="color" id="videoChromakeyColor" value="#00ff00">
+          <label>
+            感度
+            <span class="value-display" id="videoSensitivityValue">30</span>
+          </label>
+          <input type="range" id="videoChromakeySensitivity" min="1" max="100" value="30">
+        </div>
+
+        <div class="control-group">
           <label>
             FPS
             <span class="value-display" id="fpsValue">10</span>
