@@ -511,19 +511,26 @@ async function generateGif(video, startTime, endTime, fps, width) {
 
   // GIFエンコーディング（簡易版 - 実際はgif.jsなどのライブラリを使用）
   // ここでは連結PNGをGIFとして扱う簡易実装
-  const blob = await createSimpleGif(frames, 1000 / fps);
+  const blob = await createSimpleGif(frames, 1000 / fps, chromakeyEnabled);
   return blob;
 }
 
 // GIF作成（gif.jsライブラリを使用）
-async function createSimpleGif(frames, delay) {
+async function createSimpleGif(frames, delay, useTransparency = false) {
   return new Promise((resolve, reject) => {
     // gif.jsインスタンスを作成
-    const gif = new GIF({
+    const gifOptions = {
       workers: 2,
       quality: 10,
       workerScript: chrome.runtime.getURL('gif.worker.js')
-    });
+    };
+
+    // 透明度を有効化
+    if (useTransparency) {
+      gifOptions.transparent = 0x000000; // 透明色として黒を指定（実際にはアルファチャンネルで判定）
+    }
+
+    const gif = new GIF(gifOptions);
 
     // 各フレームを追加
     let loadedFrames = 0;
@@ -532,7 +539,11 @@ async function createSimpleGif(frames, delay) {
     frames.forEach((frameDataUrl, index) => {
       const img = new Image();
       img.onload = () => {
-        gif.addFrame(img, { delay: delay });
+        const frameOptions = { delay: delay };
+        if (useTransparency) {
+          frameOptions.transparent = true;
+        }
+        gif.addFrame(img, frameOptions);
         loadedFrames++;
 
         // 進捗状況を表示
