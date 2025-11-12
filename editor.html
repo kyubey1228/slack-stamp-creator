@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stamp Editor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8f8f8;
+      overflow: hidden;
+    }
+    .editor-container {
+      display: flex;
+      height: 100vh;
+    }
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #2d2d2d;
+      position: relative;
+    }
+    #editorCanvas {
+      max-width: 90%;
+      max-height: 90%;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    #videoPreview {
+      max-width: 90%;
+      max-height: 90%;
+      display: none;
+    }
+    .sidebar {
+      width: 320px;
+      background: white;
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #1d1c1d;
+    }
+    .control-group {
+      margin-bottom: 24px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #616061;
+      margin-bottom: 8px;
+    }
+    input[type="text"], input[type="number"], input[type="range"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    input[type="range"] {
+      padding: 0;
+    }
+    input[type="color"] {
+      width: 100%;
+      height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 8px;
+    }
+    .primary {
+      background: #611f69;
+      color: white;
+    }
+    .primary:hover {
+      background: #4a154b;
+    }
+    .secondary {
+      background: #f8f8f8;
+      color: #1d1c1d;
+      border: 1px solid #ddd;
+    }
+    .secondary:hover {
+      background: #e8e8e8;
+    }
+    .danger {
+      background: #e01e5a;
+      color: white;
+    }
+    .danger:hover {
+      background: #c91d4e;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      display: block;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      display: block;
+    }
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      display: block;
+    }
+    .value-display {
+      display: inline-block;
+      margin-left: 8px;
+      font-weight: 600;
+      color: #611f69;
+    }
+    .video-controls {
+      display: none;
+    }
+    .gif-preview {
+      margin-top: 12px;
+      display: none;
+    }
+    .gif-preview img {
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .crop-overlay {
+      position: absolute;
+      border: 2px dashed #00ff00;
+      background: rgba(0, 255, 0, 0.1);
+      cursor: move;
+      display: none;
+      pointer-events: all;
+      z-index: 10;
+    }
+    .canvas-area {
+      position: relative;
+    }
+    .crop-handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #00ff00;
+      border: 2px solid white;
+      border-radius: 50%;
+      pointer-events: auto;
+      cursor: nwse-resize;
+    }
+    .crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+    .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .selecting-crop {
+      cursor: crosshair !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="editor-container">
+    <div class="canvas-area" id="canvasArea">
+      <canvas id="editorCanvas"></canvas>
+      <video id="videoPreview" controls></video>
+      <div class="crop-overlay" id="cropOverlay">
+        <div class="crop-handle nw"></div>
+        <div class="crop-handle ne"></div>
+        <div class="crop-handle sw"></div>
+        <div class="crop-handle se"></div>
+      </div>
+    </div>
+    
+    <div class="sidebar">
+      <h2>✏️ 編集</h2>
+      
+      <div class="status" id="status"></div>
+      
+      <!-- 画像モードのコントロール -->
+      <div id="imageControls">
+        <div class="control-group">
+          <label>トリミング</label>
+          <button class="secondary" id="cropBtn">範囲を選択してトリミング</button>
+          <button class="secondary" id="resetCropBtn">元に戻す</button>
+        </div>
+        
+        <div class="control-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="chromakeyEnabled">
+            <label for="chromakeyEnabled" style="margin: 0;">クロマキー合成</label>
+          </div>
+          <label>除去する色</label>
+          <input type="color" id="chromakeyColor" value="#00ff00">
+          <label>
+            感度
+            <span class="value-display" id="sensitivityValue">30</span>
+          </label>
+          <input type="range" id="chromakeySensitivity" min="1" max="100" value="30">
+        </div>
+        
+        <div class="control-group">
+          <label>
+            サイズ (px)
+            <span class="value-display" id="sizeValue">128</span>
+          </label>
+          <input type="range" id="outputSize" min="64" max="512" value="128" step="64">
+        </div>
+      </div>
+      
+      <!-- 動画モードのコントロール -->
+      <div id="videoControls" class="video-controls">
+        <div class="control-group">
+          <label>🎬 時間範囲の設定</label>
+          <label>開始時間 (秒)</label>
+          <input type="number" id="startTime" value="0" min="0" step="0.1">
+        </div>
+
+        <div class="control-group">
+          <label>終了時間 (秒)</label>
+          <input type="number" id="endTime" value="3" min="0" step="0.1">
+        </div>
+
+        <div class="control-group">
+          <label>✂️ 動画領域のトリミング</label>
+          <div class="checkbox-group">
+            <input type="checkbox" id="videoCropEnabled">
+            <label for="videoCropEnabled" style="margin: 0;">トリミングを有効化</label>
+          </div>
+          <button class="secondary" id="selectVideoCropArea">範囲を選択</button>
+          <button class="secondary" id="resetVideoCrop">リセット</button>
+          <div id="cropInfo" style="font-size: 11px; color: #616061; margin-top: 8px; display: none;">
+            範囲: <span id="cropDimensions"></span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>
+            FPS
+            <span class="value-display" id="fpsValue">10</span>
+          </label>
+          <input type="range" id="fps" min="5" max="30" value="10" step="5">
+        </div>
+
+        <div class="control-group">
+          <label>
+            幅 (px)
+            <span class="value-display" id="gifWidthValue">320</span>
+          </label>
+          <input type="range" id="gifWidth" min="128" max="512" value="320" step="64">
+        </div>
+
+        <div class="control-group">
+          <button class="secondary" id="generateGif">GIFを生成</button>
+        </div>
+
+        <div class="gif-preview" id="gifPreview">
+          <img id="gifImage" alt="GIF Preview">
+        </div>
+      </div>
+      
+      <div class="control-group">
+        <label>絵文字名</label>
+        <input type="text" id="emojiName" placeholder="my_custom_emoji" pattern="[a-z0-9_-]+">
+        <small style="color: #616061; font-size: 11px;">小文字、数字、アンダースコア、ハイフンのみ</small>
+      </div>
+      
+      <button class="primary" id="uploadBtn">
+        💾 保存してSlackページを開く
+      </button>
+      
+      <button class="secondary" id="downloadBtn">
+        📥 ダウンロードのみ
+      </button>
+      
+      <button class="danger" id="closeBtn">
+        閉じる
+      </button>
+    </div>
+  </div>
+  
+  <script src="editor.js"></script>
+</body>
+</html>
