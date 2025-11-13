@@ -503,12 +503,58 @@ async function generateGif(video, startTime, endTime, fps, width) {
   return blob;
 }
 
-// 簡易GIF作成（実際のGIFフォーマットに変換）
+// GIF作成（gif.jsライブラリを使用）
 async function createSimpleGif(frames, delay) {
-  // 注: 実際の実装ではgif.jsやomggifなどのライブラリを使用すべき
-  // ここでは最初のフレームをPNGとして返す簡易版
-  const response = await fetch(frames[0]);
-  return await response.blob();
+  return new Promise((resolve, reject) => {
+    // gif.jsインスタンスを作成
+    const gif = new GIF({
+      workers: 2,
+      quality: 10,
+      workerScript: chrome.runtime.getURL('gif.worker.js')
+    });
+
+    // 各フレームを追加
+    let loadedFrames = 0;
+    const totalFrames = frames.length;
+
+    frames.forEach((frameDataUrl, index) => {
+      const img = new Image();
+      img.onload = () => {
+        gif.addFrame(img, { delay: delay });
+        loadedFrames++;
+
+        // 進捗状況を表示
+        const progress = Math.round((loadedFrames / totalFrames) * 50);
+        showStatus(`フレームを読み込み中... (${loadedFrames}/${totalFrames})`, 'info');
+
+        // 全フレーム読み込み完了後にレンダリング開始
+        if (loadedFrames === totalFrames) {
+          showStatus('GIFをエンコード中...', 'info');
+          gif.render();
+        }
+      };
+      img.onerror = () => {
+        reject(new Error(`フレーム${index}の読み込みに失敗しました`));
+      };
+      img.src = frameDataUrl;
+    });
+
+    // エンコード進捗
+    gif.on('progress', (progress) => {
+      const percent = Math.round(progress * 100);
+      showStatus(`GIFをエンコード中... ${percent}%`, 'info');
+    });
+
+    // レンダリング完了時
+    gif.on('finished', (blob) => {
+      resolve(blob);
+    });
+
+    // エラー時
+    gif.on('error', (error) => {
+      reject(error);
+    });
+  });
 }
 
 // ダウンロード

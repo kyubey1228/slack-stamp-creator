@@ -32,7 +32,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["editor.html"],
+      "resources": ["editor.html", "gif.js", "gif.worker.js"],
       "matches": ["<all_urls>"]
     }
   ]
