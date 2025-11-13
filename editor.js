@@ -161,10 +161,6 @@ document.getElementById('chromakeySensitivity').addEventListener('input', (e) =>
   updateCanvas();
 });
 
-document.getElementById('outputSize').addEventListener('input', (e) => {
-  document.getElementById('sizeValue').textContent = e.target.value;
-});
-
 document.getElementById('fps').addEventListener('input', (e) => {
   document.getElementById('fpsValue').textContent = e.target.value;
 });
@@ -567,25 +563,54 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
 
     if (mode === 'image') {
-      const size = parseInt(document.getElementById('outputSize').value);
+      // 画像は128x128の正方形に固定（Slackの推奨サイズ）
+      const size = 128;
       const resizedCanvas = document.createElement('canvas');
       resizedCanvas.width = size;
       resizedCanvas.height = size;
       const resizedCtx = resizedCanvas.getContext('2d');
 
-      resizedCtx.drawImage(canvas, 0, 0, size, size);
+      // アスペクト比を保持して中央配置
+      const sourceAspect = canvas.width / canvas.height;
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (sourceAspect > 1) {
+        // 横長の場合
+        drawWidth = size;
+        drawHeight = size / sourceAspect;
+        drawX = 0;
+        drawY = (size - drawHeight) / 2;
+      } else {
+        // 縦長の場合
+        drawHeight = size;
+        drawWidth = size * sourceAspect;
+        drawX = (size - drawWidth) / 2;
+        drawY = 0;
+      }
+
+      // 背景を透明に
+      resizedCtx.clearRect(0, 0, size, size);
+      resizedCtx.drawImage(canvas, drawX, drawY, drawWidth, drawHeight);
 
       blob = await new Promise(resolve => {
         resizedCanvas.toBlob(resolve, 'image/png');
       });
-      filename = `slack-stamps/stamp_${timestamp}.png`;
+      filename = `slack-stamps/images/stamp_${timestamp}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
         return;
       }
       blob = generatedGif;
-      filename = `slack-stamps/stamp_${timestamp}.gif`;
+
+      // Slackの制限: GIFは1MB以下
+      const sizeInMB = blob.size / (1024 * 1024);
+      if (sizeInMB > 1) {
+        showStatus(`GIFサイズが${sizeInMB.toFixed(2)}MBです。1MB以下にするには、FPSを下げるか時間範囲を短くしてください。`, 'error');
+        return;
+      }
+
+      filename = `slack-stamps/gifs/stamp_${timestamp}.gif`;
     }
 
     const url = URL.createObjectURL(blob);
@@ -595,7 +620,12 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     a.click();
     URL.revokeObjectURL(url);
 
-    showStatus('ダウンロードしました！ (ダウンロードフォルダ/slack-stamps/)', 'success');
+    if (mode === 'image') {
+      showStatus('ダウンロードしました！ (ダウンロードフォルダ/slack-stamps/images/)', 'success');
+    } else {
+      const sizeInKB = (blob.size / 1024).toFixed(0);
+      showStatus(`ダウンロードしました！ (${sizeInKB}KB) (ダウンロードフォルダ/slack-stamps/gifs/)`, 'success');
+    }
   } catch (error) {
     console.error('ダウンロードエラー:', error);
     showStatus('ダウンロードに失敗しました', 'error');
@@ -630,23 +660,54 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
     let filename;
 
     if (mode === 'image') {
-      const size = parseInt(document.getElementById('outputSize').value);
+      // 画像は128x128の正方形に固定（Slackの推奨サイズ）
+      const size = 128;
       const resizedCanvas = document.createElement('canvas');
       resizedCanvas.width = size;
       resizedCanvas.height = size;
       const resizedCtx = resizedCanvas.getContext('2d');
-      resizedCtx.drawImage(canvas, 0, 0, size, size);
+
+      // アスペクト比を保持して中央配置
+      const sourceAspect = canvas.width / canvas.height;
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (sourceAspect > 1) {
+        // 横長の場合
+        drawWidth = size;
+        drawHeight = size / sourceAspect;
+        drawX = 0;
+        drawY = (size - drawHeight) / 2;
+      } else {
+        // 縦長の場合
+        drawHeight = size;
+        drawWidth = size * sourceAspect;
+        drawX = (size - drawWidth) / 2;
+        drawY = 0;
+      }
+
+      // 背景を透明に
+      resizedCtx.clearRect(0, 0, size, size);
+      resizedCtx.drawImage(canvas, drawX, drawY, drawWidth, drawHeight);
+
       blob = await new Promise(resolve => {
         resizedCanvas.toBlob(resolve, 'image/png');
       });
-      filename = `slack-stamps/${emojiName}.png`;
+      filename = `slack-stamps/images/${emojiName}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
         return;
       }
       blob = generatedGif;
-      filename = `slack-stamps/${emojiName}.gif`;
+
+      // Slackの制限: GIFは1MB以下
+      const sizeInMB = blob.size / (1024 * 1024);
+      if (sizeInMB > 1) {
+        showStatus(`GIFサイズが${sizeInMB.toFixed(2)}MBです。1MB以下にするには、FPSを下げるか時間範囲を短くしてください。`, 'error');
+        return;
+      }
+
+      filename = `slack-stamps/gifs/${emojiName}.gif`;
     }
 
     // ダウンロード
@@ -663,7 +724,12 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
       workspace: settings.workspace
     });
 
-    showStatus(`「${filename}」をダウンロードしました！\nSlackのページで手動でアップロードしてください。\n保存先: ダウンロードフォルダ/slack-stamps/`, 'success');
+    if (mode === 'image') {
+      showStatus(`「${filename}」をダウンロードしました！\nSlackのページで手動でアップロードしてください。\n保存先: ダウンロードフォルダ/slack-stamps/images/`, 'success');
+    } else {
+      const sizeInKB = (blob.size / 1024).toFixed(0);
+      showStatus(`「${filename}」(${sizeInKB}KB)をダウンロードしました！\nSlackのページで手動でアップロードしてください。\n保存先: ダウンロードフォルダ/slack-stamps/gifs/`, 'success');
+    }
     
     // 5秒後に自動的に閉じる
     setTimeout(() => {
