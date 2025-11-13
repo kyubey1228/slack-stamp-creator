@@ -169,6 +169,10 @@ document.getElementById('gifWidth').addEventListener('input', (e) => {
   document.getElementById('gifWidthValue').textContent = e.target.value;
 });
 
+document.getElementById('videoChromakeySensitivity').addEventListener('input', (e) => {
+  document.getElementById('videoSensitivityValue').textContent = e.target.value;
+});
+
 // 画像トリミング機能
 document.getElementById('cropBtn').addEventListener('click', () => {
   if (!canvas || mode !== 'image') return;
@@ -441,10 +445,15 @@ async function generateGif(video, startTime, endTime, fps, width) {
   const duration = endTime - startTime;
   const frameCount = Math.floor(duration * fps);
   const interval = 1 / fps;
-  
+
   // トリミング設定を確認
   const cropEnabled = document.getElementById('videoCropEnabled').checked;
   const useCrop = cropEnabled && videoCropRect;
+
+  // クロマキー設定を確認
+  const chromakeyEnabled = document.getElementById('videoChromakeyEnabled').checked;
+  const chromakeyColor = document.getElementById('videoChromakeyColor').value;
+  const chromakeySensitivity = parseInt(document.getElementById('videoChromakeySensitivity').value);
 
   // Canvasを作成
   const tempCanvas = document.createElement('canvas');
@@ -466,7 +475,7 @@ async function generateGif(video, startTime, endTime, fps, width) {
   const aspectRatio = sourceHeight / sourceWidth;
   tempCanvas.width = width;
   tempCanvas.height = Math.floor(width * aspectRatio);
-  const tempCtx = tempCanvas.getContext('2d');
+  const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
   const frames = [];
 
@@ -490,9 +499,16 @@ async function generateGif(video, startTime, endTime, fps, width) {
       tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
     }
 
+    // クロマキー処理を適用
+    if (chromakeyEnabled) {
+      const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      const processedData = applyChromakey(imageData, chromakeyColor, chromakeySensitivity);
+      tempCtx.putImageData(processedData, 0, 0);
+    }
+
     frames.push(tempCanvas.toDataURL('image/png'));
   }
-  
+
   // GIFエンコーディング（簡易版 - 実際はgif.jsなどのライブラリを使用）
   // ここでは連結PNGをGIFとして扱う簡易実装
   const blob = await createSimpleGif(frames, 1000 / fps);
