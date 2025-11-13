@@ -592,21 +592,19 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
       resizedCtx.clearRect(0, 0, size, size);
       resizedCtx.drawImage(canvas, drawX, drawY, drawWidth, drawHeight);
 
-      blob = await new Promise(resolve => {
-        resizedCanvas.toBlob(resolve, 'image/png');
-      });
+      // 画像を128KB以下に圧縮
+      blob = await compressImage(resizedCanvas, 128);
       filename = `${timestamp}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
         return;
       }
-      blob = generatedGif;
+      // GIFを128KB以下に圧縮
+      blob = await compressGif(generatedGif, 128);
 
-      // Slackの制限: GIFは1MB以下
-      const sizeInMB = blob.size / (1024 * 1024);
-      if (sizeInMB > 1) {
-        showStatus(`GIFサイズが${sizeInMB.toFixed(2)}MBです。1MB以下にするには、FPSを下げるか時間範囲を短くしてください。`, 'error');
+      if (!blob) {
+        showStatus('GIFを128KB以下に圧縮できませんでした。FPSを下げるか時間範囲を短くしてください。', 'error');
         return;
       }
 
@@ -694,21 +692,19 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
       resizedCtx.clearRect(0, 0, size, size);
       resizedCtx.drawImage(canvas, drawX, drawY, drawWidth, drawHeight);
 
-      blob = await new Promise(resolve => {
-        resizedCanvas.toBlob(resolve, 'image/png');
-      });
+      // 画像を128KB以下に圧縮
+      blob = await compressImage(resizedCanvas, 128);
       filename = `${emojiName}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
         return;
       }
-      blob = generatedGif;
+      // GIFを128KB以下に圧縮
+      blob = await compressGif(generatedGif, 128);
 
-      // Slackの制限: GIFは1MB以下
-      const sizeInMB = blob.size / (1024 * 1024);
-      if (sizeInMB > 1) {
-        showStatus(`GIFサイズが${sizeInMB.toFixed(2)}MBです。1MB以下にするには、FPSを下げるか時間範囲を短くしてください。`, 'error');
+      if (!blob) {
+        showStatus('GIFを128KB以下に圧縮できませんでした。FPSを下げるか時間範囲を短くしてください。', 'error');
         return;
       }
 
@@ -760,10 +756,76 @@ function showStatus(message, type) {
   const status = document.getElementById('status');
   status.textContent = message;
   status.className = `status ${type}`;
-  
+
   if (type === 'success' || type === 'error') {
     setTimeout(() => {
       status.style.display = 'none';
     }, 5000);
   }
+}
+
+// 画像を指定サイズ(KB)以下に圧縮
+async function compressImage(canvas, maxSizeKB) {
+  let quality = 0.9;
+  let blob;
+
+  // PNG形式で試す
+  blob = await new Promise(resolve => {
+    canvas.toBlob(resolve, 'image/png');
+  });
+
+  // すでに128KB以下なら圧縮不要
+  if (blob.size <= maxSizeKB * 1024) {
+    return blob;
+  }
+
+  // JPEGに変換して圧縮を試みる
+  while (quality > 0.1) {
+    blob = await new Promise(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    });
+
+    if (blob.size <= maxSizeKB * 1024) {
+      return blob;
+    }
+
+    quality -= 0.1;
+  }
+
+  // それでも大きければ画像サイズを縮小
+  let scale = 0.9;
+  while (scale > 0.3) {
+    const tempCanvas = document.createElement('canvas');
+    const newWidth = Math.floor(canvas.width * scale);
+    const newHeight = Math.floor(canvas.height * scale);
+    tempCanvas.width = newWidth;
+    tempCanvas.height = newHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
+
+    blob = await new Promise(resolve => {
+      tempCanvas.toBlob(resolve, 'image/jpeg', 0.8);
+    });
+
+    if (blob.size <= maxSizeKB * 1024) {
+      return blob;
+    }
+
+    scale -= 0.1;
+  }
+
+  // 最終手段として最小品質で返す
+  return blob;
+}
+
+// GIFを指定サイズ(KB)以下に圧縮
+async function compressGif(originalGif, maxSizeKB) {
+  // すでに128KB以下なら圧縮不要
+  if (originalGif.size <= maxSizeKB * 1024) {
+    return originalGif;
+  }
+
+  // GIFは再生成が必要なので、元のフレームを削減して再生成する必要がある
+  // ここでは簡易的に失敗を返す（ユーザーにFPS調整を促す）
+  return null;
 }
