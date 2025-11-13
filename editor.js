@@ -595,7 +595,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
       blob = await new Promise(resolve => {
         resizedCanvas.toBlob(resolve, 'image/png');
       });
-      filename = `slack-stamps/images/stamp_${timestamp}.png`;
+      filename = `${timestamp}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
@@ -610,21 +610,26 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
         return;
       }
 
-      filename = `slack-stamps/gifs/stamp_${timestamp}.gif`;
+      filename = `${timestamp}.gif`;
     }
 
+    // Chrome Downloads APIを使用してファイルを保存
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const downloadId = await chrome.downloads.download({
+        url: url,
+        filename: filename,
+        saveAs: true  // 保存先を毎回確認
+      });
 
-    if (mode === 'image') {
-      showStatus('ダウンロードしました！ (ダウンロードフォルダ/slack-stamps/images/)', 'success');
-    } else {
-      const sizeInKB = (blob.size / 1024).toFixed(0);
-      showStatus(`ダウンロードしました！ (${sizeInKB}KB) (ダウンロードフォルダ/slack-stamps/gifs/)`, 'success');
+      if (mode === 'image') {
+        showStatus('ダウンロードしました！', 'success');
+      } else {
+        const sizeInKB = (blob.size / 1024).toFixed(0);
+        showStatus(`ダウンロードしました！ (${sizeInKB}KB)`, 'success');
+      }
+    } finally {
+      URL.revokeObjectURL(url);
     }
   } catch (error) {
     console.error('ダウンロードエラー:', error);
@@ -692,7 +697,7 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
       blob = await new Promise(resolve => {
         resizedCanvas.toBlob(resolve, 'image/png');
       });
-      filename = `slack-stamps/images/${emojiName}.png`;
+      filename = `${emojiName}.png`;
     } else {
       if (!generatedGif) {
         showStatus('先にGIFを生成してください', 'error');
@@ -707,28 +712,32 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
         return;
       }
 
-      filename = `slack-stamps/gifs/${emojiName}.gif`;
+      filename = `${emojiName}.gif`;
     }
 
-    // ダウンロード
+    // Chrome Downloads APIを使用してファイルを保存
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      await chrome.downloads.download({
+        url: url,
+        filename: filename,
+        saveAs: true  // 保存先を毎回確認
+      });
 
-    // Slackの絵文字カスタマイズページを開く
-    await chrome.runtime.sendMessage({
-      action: 'openSlackCustomize',
-      workspace: settings.workspace
-    });
+      // Slackの絵文字カスタマイズページを開く
+      await chrome.runtime.sendMessage({
+        action: 'openSlackCustomize',
+        workspace: settings.workspace
+      });
 
-    if (mode === 'image') {
-      showStatus(`「${filename}」をダウンロードしました！\nSlackのページで手動でアップロードしてください。\n保存先: ダウンロードフォルダ/slack-stamps/images/`, 'success');
-    } else {
-      const sizeInKB = (blob.size / 1024).toFixed(0);
-      showStatus(`「${filename}」(${sizeInKB}KB)をダウンロードしました！\nSlackのページで手動でアップロードしてください。\n保存先: ダウンロードフォルダ/slack-stamps/gifs/`, 'success');
+      if (mode === 'image') {
+        showStatus(`「${filename}」をダウンロードしました！\nSlackのページで手動でアップロードしてください。`, 'success');
+      } else {
+        const sizeInKB = (blob.size / 1024).toFixed(0);
+        showStatus(`「${filename}」(${sizeInKB}KB)をダウンロードしました！\nSlackのページで手動でアップロードしてください。`, 'success');
+      }
+    } finally {
+      URL.revokeObjectURL(url);
     }
     
     // 5秒後に自動的に閉じる
